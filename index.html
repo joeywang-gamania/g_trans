@@ -105,8 +105,9 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Sidebar -->
+            <!-- Left Sidebar -->
             <div class="lg:col-span-3 space-y-6 side-panel overflow-y-auto pr-2">
+                <!-- Project Settings -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">專案設定</h2>
                     <div class="space-y-4">
@@ -126,6 +127,7 @@
                     </div>
                 </div>
 
+                <!-- Glossary Display -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">試算表術語庫</h2>
@@ -138,6 +140,7 @@
                     </div>
                 </div>
 
+                <!-- Controls -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <button id="startBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-100">
                         <i class="fas fa-microphone"></i> 啟動會議翻譯
@@ -189,7 +192,7 @@
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
                     <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">決議與待辦項目</h2>
                     <div id="actionItemsList" class="space-y-4">
-                        <div class="text-slate-400 text-xs italic">尚未識別到任務...</div>
+                        <div class="text-slate-400 text-xs italic">尚未識別到具體任務...</div>
                     </div>
                 </div>
             </div>
@@ -204,7 +207,8 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
         // --- 核心設定 ---
-        const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o"; 
+        // 在預覽環境中保持為空字串，系統會自動處理 Key；部署到外部時請填入您的 Key。
+        const apiKey = ""; 
         const appId = "g-trans-v3";
         
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
@@ -256,6 +260,7 @@
 
         function cleanJsonString(str) {
             if (!str) return "";
+            // 移除可能存在的 Markdown JSON 標記
             let cleaned = str.replace(/```json/g, '').replace(/```/g, '').trim();
             const start = Math.max(cleaned.indexOf('['), cleaned.indexOf('{'));
             const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
@@ -276,7 +281,7 @@
             try {
                 const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
                 const response = await fetch(url);
-                if (!response.ok) throw new Error("讀取失敗");
+                if (!response.ok) throw new Error("讀取失敗，請確認分頁名稱是否存在。");
                 const csvData = await response.text();
                 parseGlossaryCSV(csvData);
                 syncStatus.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 已連線: ${gameName}`;
@@ -345,7 +350,6 @@
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             
-            // 指數退避重試邏輯 (1s, 2s, 4s, 8s, 16s)
             let delay = 1000;
             for (let i = 0; i < 5; i++) {
                 try {
@@ -360,22 +364,23 @@
                         return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     }
                     
+                    const errData = await res.json().catch(() => ({}));
+                    const errMsg = errData.error?.message || `HTTP ${res.status}`;
+                    
                     if (res.status === 401 || res.status === 403) {
-                        throw new Error(`API Key 無效或無權限 (錯誤代碼: ${res.status})。請檢查 Google Cloud 控制台是否啟用了 Generative Language API。`);
+                        throw new Error(`API Key 權限錯誤 (${res.status}): ${errMsg}`);
                     }
                     
                     if (res.status === 429 || res.status >= 500) {
-                        // 如果是流量限制或伺服器錯誤，則進行重試
                         await new Promise(resolve => setTimeout(resolve, delay));
                         delay *= 2;
                         continue;
                     }
                     
-                    const errData = await res.json();
-                    throw new Error(`AI 請求失敗 (${res.status}): ${errData.error?.message || '未知錯誤'}`);
+                    throw new Error(`AI 請求失敗 (${res.status}): ${errMsg}`);
                     
                 } catch (e) {
-                    if (i === 4) throw e; // 最後一次重試失敗，拋出錯誤
+                    if (i === 4) throw e;
                     await new Promise(resolve => setTimeout(resolve, delay));
                     delay *= 2;
                 }
@@ -388,7 +393,7 @@
             if (!game) return alert("請先輸入遊戲名稱");
             
             document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
-            contextStatus.innerText = "🔍 正在進行網路搜尋並同步術語...";
+            contextStatus.innerText = "🔍 正在搜尋台韓術語並同步至試算表...";
 
             try {
                 // 1. 搜尋背景
@@ -396,7 +401,7 @@
                 gameContext = searchRes;
 
                 // 2. 結構化提取 JSON
-                const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 陣列：\n${searchRes}`;
+                const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 陣列，不要有任何解釋：\n${searchRes}`;
                 const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
 
@@ -407,10 +412,12 @@
                     renderGlossary();
                     await syncTermsToSheet(newTerms);
                     contextStatus.innerText = `✅ 已更新並發送 ${newTerms.length} 個術語至試算表。`;
+                } else {
+                    contextStatus.innerText = "✅ 搜尋完成，但未發現新的術語格式。";
                 }
             } catch (e) {
                 console.error(e);
-                contextStatus.innerHTML = `<span class="text-red-500">❌ ${e.message}</span>`;
+                contextStatus.innerHTML = `<span class="text-red-500 font-bold">❌ 發生錯誤：${e.message}</span>`;
             } finally {
                 document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
             }
