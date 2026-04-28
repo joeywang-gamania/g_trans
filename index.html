@@ -148,7 +148,7 @@
                 </div>
             </div>
 
-            <!-- Main Panel -->
+            <!-- Middle Panel -->
             <div class="lg:col-span-6 flex flex-col side-panel">
                 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                     <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -182,7 +182,7 @@
                         <i id="summaryLoading" class="fas fa-circle-notch loading-spinner opacity-0 transition-opacity"></i>
                     </div>
                     <div id="summaryText" class="text-sm leading-relaxed text-indigo-100">
-                        等待對話產生後顯示摘要...
+                        待會對話產生後，這裡會出現摘要...
                     </div>
                 </div>
 
@@ -204,34 +204,39 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
         // --- 核心設定 ---
-        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY (目前的看起來不完整)
-        const apiKey = "請在此填入完整的API_KEY"; 
+        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY
+        const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o"; 
         const appId = "g-trans-v3";
         
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
         const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
         
-        // 安全處理 Firebase 初始化，避免在 GitHub 環境崩潰
-        let auth, db;
+        // 安全處理 Firebase 初始化，避開環境變數缺失導致的崩潰
+        let auth;
         try {
-            const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{"apiKey":"na","projectId":"na"}';
-            const firebaseConfig = JSON.parse(firebaseConfigStr);
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            
-            const initAuth = async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else if (auth.config.apiKey !== "na") {
-                    await signInAnonymously(auth);
-                }
-            };
-            initAuth();
-            onAuthStateChanged(auth, u => {
-                if (u) document.getElementById('syncStatus').innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 雲端功能就緒`;
-            });
+            const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
+            if (hasFirebaseConfig) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                };
+                initAuth();
+                onAuthStateChanged(auth, u => {
+                    if (u) document.getElementById('syncStatus').innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 雲端功能就緒`;
+                });
+            } else {
+                console.info("Firebase 配置未偵測，同步至試算表與翻譯功能仍可運作。");
+                document.getElementById('syncStatus').innerHTML = `<i class="fas fa-info-circle text-blue-400"></i> 外部部署模式`;
+            }
         } catch (e) {
-            console.warn("Firebase 初始化跳過 (外部部署環境)");
+            console.warn("Firebase 初始化跳過:", e);
         }
 
         let recognition;
@@ -319,6 +324,7 @@
             const gameName = gameNameInput.value.trim();
             if (!gameName || terms.length === 0) return;
             try {
+                // 使用 no-cors 模式發送，避開瀏覽器對於 GAS 的 CORS 預檢限制
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -326,7 +332,7 @@
                     body: JSON.stringify({ game: gameName, terms: terms })
                 });
             } catch (err) {
-                console.error("同步失敗:", err);
+                console.error("同步至試算表失敗:", err);
             }
         }
 
@@ -345,7 +351,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error("API 請求失敗");
+            if (!res.ok) throw new Error("AI 請求失敗，請確認 API Key 是否有效。");
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         }
@@ -354,15 +360,16 @@
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請先輸入遊戲名稱");
-            if (apiKey.includes("填入")) return alert("請先在代碼中填入正確的 Gemini API Key");
             
-            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋中...`;
-            contextStatus.innerText = "🔍 正在搜尋台韓術語並同步至試算表...";
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
+            contextStatus.innerText = "🔍 正在進行網路搜尋並同步術語...";
 
             try {
-                const searchRes = await callGemini(`請分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲產業顧問。", { tools: [{ "google_search": {} }] });
+                // 1. 搜尋背景
+                const searchRes = await callGemini(`請詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位精通台韓遊戲產業的資深顧問。", { tools: [{ "google_search": {} }] });
                 gameContext = searchRes;
 
+                // 2. 結構化提取 JSON
                 const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 陣列：\n${searchRes}`;
                 const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
@@ -373,10 +380,11 @@
                     });
                     renderGlossary();
                     await syncTermsToSheet(newTerms);
-                    contextStatus.innerText = `✅ 已發送 ${newTerms.length} 個新術語至 Sheet。`;
+                    contextStatus.innerText = `✅ 已更新並發送 ${newTerms.length} 個術語至試算表。`;
                 }
             } catch (e) {
-                contextStatus.innerText = "❌ 處理失敗，請檢查 API Key。";
+                console.error(e);
+                contextStatus.innerText = "❌ 搜尋過程發生錯誤，請檢查主控台。";
             } finally {
                 document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
             }
@@ -399,7 +407,7 @@
                 updateChatBubble(msgId, result);
                 transcriptHistory.push({ ...result, kr: krText, time });
                 if (transcriptHistory.length % 2 === 0) updateSummary();
-            } catch (e) { console.error("翻譯錯誤:", e); }
+            } catch (e) { console.error("翻譯出錯:", e); }
         }
 
         async function updateSummary() {
@@ -440,7 +448,7 @@
             }
         }
 
-        // 綁定事件
+        // 綁定按鈕
         document.getElementById('loadSheetBtn').addEventListener('click', fetchGlossaryFromSheet);
         document.getElementById('openSheetBtn').addEventListener('click', () => window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, '_blank'));
 
@@ -479,9 +487,9 @@
         });
 
         document.getElementById('copyToClipboardBtn').addEventListener('click', () => {
-            const text = `摘要：\n${summaryText.innerText}\n\n對話紀錄：\n` + transcriptHistory.map(m => `[${m.time}] ${m.translation}`).join('\n');
+            const fullContent = `會議摘要：\n${summaryText.innerText}\n\n詳細紀錄：\n` + transcriptHistory.map(m => `[${m.time}] ${m.translation}`).join('\n');
             const textArea = document.createElement("textarea");
-            textArea.value = text;
+            textArea.value = fullContent;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
@@ -492,7 +500,8 @@
         });
 
         document.getElementById('exportBtn').addEventListener('click', () => {
-            const blob = new Blob([transcriptHistory.map(m => `[${m.time}] ${m.kr}\n${m.translation}`).join('\n\n')], { type: 'text/plain' });
+            const content = transcriptHistory.map(m => `[${m.time}] KR: ${m.kr}\nZH: ${m.translation}`).join('\n\n');
+            const blob = new Blob([content], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = `Meeting_Log.txt`;
