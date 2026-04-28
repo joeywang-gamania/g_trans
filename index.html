@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamania-Trans</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', 'Noto Sans KR', sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        .chat-container {
+            height: calc(100vh - 420px);
+            min-height: 400px;
+        }
+
+        .side-panel {
+            height: calc(100vh - 120px);
+        }
+
+        .tone-tag {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-weight: bold;
+        }
+
+        .tone-formal { background-color: #e0e7ff; color: #4338ca; }
+        .tone-urgent { background-color: #fee2e2; color: #b91c1c; animation: pulse 2s infinite; }
+        .tone-angry { background-color: #fef2f2; color: #991b1b; border: 1px solid #f87171; }
+        .tone-casual { background-color: #f0fdf4; color: #15803d; }
+        .tone-doubt { background-color: #fefce8; color: #a16207; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .visualizer-bar { transition: height 0.1s ease; }
+        .loading-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .copy-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            z-index: 100;
+            display: none;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translate(-50%, 50px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 overflow-hidden">
+    <div class="max-w-[1600px] mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div class="flex items-center gap-4">
+                <div class="bg-green-600 p-3 rounded-2xl shadow-lg">
+                    <i class="fas fa-sync text-white text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">G-Trans 3.0</h1>
+                    <p class="text-slate-500 text-sm">遊戲業專用(台韓) · Sheets 自動同步</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="syncStatus" class="text-xs text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-200">
+                    <i class="fas fa-link"></i> 尚未同步分頁
+                </div>
+                <div id="audioVisualizer" class="flex items-end gap-1 h-8 px-4 bg-white rounded-full border border-slate-200">
+                    <div class="visualizer-bar w-1 bg-slate-300 h-1"></div>
+                    <div class="visualizer-bar w-1 bg-slate-300 h-2"></div>
+                    <div class="visualizer-bar w-1 bg-slate-400 h-3"></div>
+                </div>
+                <div class="flex gap-1">
+                    <button id="copyToClipboardBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl shadow-sm text-sm transition-all flex items-center gap-2">
+                        <i class="fas fa-copy"></i> 複製到 Google Docs
+                    </button>
+                    <button id="exportBtn" class="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm transition-all flex items-center gap-2">
+                        <i class="fas fa-file-export"></i> 匯出
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Sidebar -->
+            <div class="lg:col-span-3 space-y-6 side-panel overflow-y-auto pr-2">
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">專案設定</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[11px] text-slate-500 mb-1 font-bold">當前遊戲 (對應分頁名稱)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="gameName" placeholder="例: 新瑪奇" class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all">
+                                <button id="loadSheetBtn" title="同步分頁數據" class="bg-green-100 p-2 rounded-xl hover:bg-green-200 text-green-700 transition-colors">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="fetchContextBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all">
+                            <i class="fas fa-search"></i> 搜尋背景並同步術語
+                        </button>
+                        <div id="contextStatus" class="text-[10px] text-slate-400 mt-1 italic leading-tight">搜尋結果會自動同步至 Sheet 分頁。</div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">試算表術語庫</h2>
+                        <button id="openSheetBtn" class="text-green-600 text-xs font-bold hover:underline flex items-center gap-1">
+                            <i class="fas fa-external-link-alt"></i> 前往編輯
+                        </button>
+                    </div>
+                    <div id="glossaryList" class="space-y-2 max-h-60 overflow-y-auto mb-2 text-[11px]">
+                        <div class="text-slate-400 italic text-center py-4">請輸入遊戲名稱並同步數據...</div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
+                    <button id="startBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-100">
+                        <i class="fas fa-microphone"></i> 啟動會議翻譯
+                    </button>
+                    <button id="stopBtn" class="w-full bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all hidden">
+                        <i class="fas fa-stop-circle"></i> 停止錄音
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Panel -->
+            <div class="lg:col-span-6 flex flex-col side-panel">
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div class="flex items-center gap-3">
+                            <span id="liveDot" class="flex h-2 w-2 rounded-full bg-slate-300"></span>
+                            <h3 class="font-bold text-slate-700">即時中韓對譯</h3>
+                        </div>
+                        <div id="statusTag" class="text-[10px] font-bold px-2 py-0.5 bg-slate-200 text-slate-600 rounded-md">IDLE</div>
+                    </div>
+
+                    <div id="chatBox" class="chat-container overflow-y-auto p-6 space-y-6 scroll-smooth">
+                        <div id="emptyState" class="flex flex-col items-center justify-center h-full text-center space-y-4 max-w-sm mx-auto opacity-50">
+                            <i class="fas fa-language text-5xl text-slate-200"></i>
+                            <p class="text-sm">尚未有對話。同步試算表後即可開始會議。</p>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-white border-t border-slate-100">
+                        <div class="flex-1 bg-slate-50 rounded-2xl px-4 py-3 border border-slate-100 min-h-[50px]">
+                            <p id="interimText" class="text-slate-400 italic text-xs leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="lg:col-span-3 space-y-6 side-panel overflow-y-auto pl-2">
+                <div class="bg-indigo-900 text-white p-6 rounded-3xl shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs font-black uppercase tracking-widest opacity-60">AI 會議自動摘要</h2>
+                        <i id="summaryLoading" class="fas fa-circle-notch loading-spinner opacity-0 transition-opacity"></i>
+                    </div>
+                    <div id="summaryText" class="text-sm leading-relaxed text-indigo-100">
+                        等待對話產生後顯示摘要...
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">決議與待辦項目</h2>
+                    <div id="actionItemsList" class="space-y-4">
+                        <div class="text-slate-400 text-xs italic">尚未識別到任務...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="copyToast" class="copy-toast">已複製到剪貼簿，請至 Google Docs 貼上！</div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        
+        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY
+        const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o";
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'g-trans-v3';
+        
+        const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
+        const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
+        
+        let recognition;
+        let isListening = false;
+        let gameContext = "";
+        let customGlossary = {};
+        let transcriptHistory = [];
+        let actionItemsHistory = [];
+
+        // DOM 元素
+        const chatBox = document.getElementById('chatBox');
+        const summaryText = document.getElementById('summaryText');
+        const actionItemsList = document.getElementById('actionItemsList');
+        const contextStatus = document.getElementById('contextStatus');
+        const interimTextDiv = document.getElementById('interimText');
+        const gameNameInput = document.getElementById('gameName');
+        const glossaryList = document.getElementById('glossaryList');
+        const syncStatus = document.getElementById('syncStatus');
+
+        // Firebase 基礎連線
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+        initAuth();
+
+        function cleanJsonString(str) {
+            if (!str) return "";
+            let cleaned = str.replace(/```json/g, '').replace(/```/g, '').trim();
+            const start = Math.max(cleaned.indexOf('['), cleaned.indexOf('{'));
+            const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
+            if (start !== -1 && end !== -1) {
+                return cleaned.substring(start, end + 1);
+            }
+            return cleaned;
+        }
+
+        // Google Sheets 讀取邏輯
+        async function fetchGlossaryFromSheet() {
+            const gameName = gameNameInput.value.trim();
+            if (!gameName) {
+                alert("請輸入遊戲名稱（分頁名稱）。");
+                return;
+            }
+            syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-yellow-500"></i> 同步數據中...`;
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("讀取失敗，請確認分頁名稱是否存在。");
+                const csvData = await response.text();
+                parseGlossaryCSV(csvData);
+                syncStatus.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 已連線: ${gameName}`;
+                renderGlossary();
+            } catch (error) {
+                syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-red-500"></i> 同步失敗`;
+            }
+        }
+
+        function parseGlossaryCSV(csvText) {
+            customGlossary = {};
+            const lines = csvText.split(/\r?\n/);
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+                const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                if (parts && parts.length >= 2) {
+                    const kr = parts[0].replace(/"/g, '').trim();
+                    const zh = parts[1].replace(/"/g, '').trim();
+                    const desc = parts[2] ? parts[2].replace(/"/g, '').trim() : "";
+                    if (kr && zh) customGlossary[kr] = { zh, desc };
+                }
+            }
+        }
+
+        function renderGlossary() {
+            glossaryList.innerHTML = '';
+            const entries = Object.entries(customGlossary);
+            if (entries.length === 0) {
+                glossaryList.innerHTML = `<div class="text-slate-400 italic text-center py-4">無術語資料。</div>`;
+                return;
+            }
+            entries.forEach(([kr, data]) => {
+                const div = document.createElement('div');
+                div.className = "p-2 bg-slate-50 rounded-lg border border-slate-100 flex justify-between items-center text-[10px]";
+                div.innerHTML = `<span><b>${kr}</b> <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${data.zh}</span>`;
+                glossaryList.appendChild(div);
+            });
+        }
+
+        // Google Sheets 同步寫入
+        async function syncTermsToSheet(terms) {
+            const gameName = gameNameInput.value.trim();
+            if (!gameName || terms.length === 0) return;
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    body: JSON.stringify({ game: gameName, terms: terms })
+                });
+                console.log("同步請求已發送至 Apps Script (no-cors)");
+            } catch (err) {
+                console.error("同步失敗:", err);
+            }
+        }
+
+        // Gemini AI 核心呼叫
+        async function callGemini(prompt, sys, options = {}) {
+            const { schema = false, tools = [] } = options;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: sys }] }
+            };
+            if (schema) payload.generationConfig = { responseMimeType: "application/json" };
+            if (tools.length > 0) payload.tools = tools;
+
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error("API 請求失敗");
+            const data = await res.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        // 背景搜尋並提取術語
+        document.getElementById('fetchContextBtn').addEventListener('click', async () => {
+            const game = gameNameInput.value.trim();
+            if (!game) return alert("請先輸入遊戲名稱");
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋並同步中...`;
+            contextStatus.innerText = "🔍 正在搜尋台韓術語並同步至試算表...";
+
+            try {
+                const searchRes = await callGemini(`請分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲產業顧問。", { tools: [{ "google_search": {} }] });
+                gameContext = searchRes;
+
+                const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 陣列：\n${searchRes}`;
+                const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
+                const newTerms = JSON.parse(cleanJsonString(rawJson));
+
+                if (Array.isArray(newTerms) && newTerms.length > 0) {
+                    newTerms.forEach(t => { 
+                        if (t.kr && t.zh && !customGlossary[t.kr]) customGlossary[t.kr] = { zh: t.zh, desc: t.desc || "" };
+                    });
+                    renderGlossary();
+                    await syncTermsToSheet(newTerms);
+                    contextStatus.innerText = `✅ 搜尋完成！已成功發送 ${newTerms.length} 個新術語至 Sheet。`;
+                }
+            } catch (e) {
+                contextStatus.innerText = "❌ 處理過程發生錯誤。";
+            } finally {
+                document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
+            }
+        });
+
+        // 核心翻譯與摘要
+        async function processLine(krText) {
+            if (!krText.trim()) return;
+            document.getElementById('emptyState').classList.add('hidden');
+            const msgId = Date.now();
+            const time = new Date().toLocaleTimeString();
+            addChatBubble(msgId, krText, "翻譯中...", time);
+
+            const glossaryStr = Object.entries(customGlossary).map(([k,v])=>`${k}=>${v.zh}`).join(', ');
+            const sys = `你是專業台韓遊戲口譯。背景：${gameContext}。術語庫優先：${glossaryStr}。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
+
+            try {
+                const rawRes = await callGemini(krText, sys, { schema: true });
+                const result = JSON.parse(cleanJsonString(rawRes));
+                updateChatBubble(msgId, result);
+                transcriptHistory.push({ ...result, kr: krText, time });
+                if (transcriptHistory.length % 2 === 0) updateSummary();
+            } catch (e) { console.error("翻譯錯誤:", e); }
+        }
+
+        async function updateSummary() {
+            document.getElementById('summaryLoading').classList.replace('opacity-0', 'opacity-100');
+            const history = transcriptHistory.slice(-10).map(m => `[${m.time}] ${m.translation}`).join('\n');
+            const sys = `產出摘要與代辦清單。JSON: {"summary": "...", "tasks": [{"title": "...", "due": "...", "priority": "高/中/低"}]}`;
+            try {
+                const rawRes = await callGemini(history, sys, { schema: true });
+                const data = JSON.parse(cleanJsonString(rawRes));
+                summaryText.innerText = data.summary;
+                actionItemsHistory = data.tasks;
+                actionItemsList.innerHTML = data.tasks.map(t => `
+                    <div class="p-3 bg-white border-l-4 ${t.priority==='高'?'border-rose-500':'border-indigo-400'} rounded-xl shadow-sm border border-slate-100">
+                        <p class="text-xs font-bold text-slate-800">${t.title}</p>
+                        <p class="text-[9px] text-slate-400 mt-1">期限: ${t.due} | ${t.priority}優先</p>
+                    </div>
+                `).join('');
+            } catch (e) { console.error("摘要更新失敗:", e); }
+            document.getElementById('summaryLoading').classList.replace('opacity-100', 'opacity-0');
+        }
+
+        function addChatBubble(id, kr, zh, time) {
+            const div = document.createElement('div');
+            div.id = `msg-${id}`;
+            div.innerHTML = `<div class="flex items-center gap-2 mb-1"><span class="text-[9px] text-slate-400 font-mono">${time}</span><span id="tone-${id}" class="tone-tag hidden"></span></div><div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm text-sm"><p class="text-[10px] text-slate-400 mb-2 pb-1 border-b border-slate-50">${kr}</p><p id="zh-${id}" class="text-slate-800 font-medium">${zh}</p></div>`;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function updateChatBubble(id, res) {
+            const zhElem = document.getElementById(`zh-${id}`);
+            if (zhElem) zhElem.innerText = res.translation;
+            const tone = document.getElementById('tone-' + id);
+            if (tone) {
+                tone.innerText = res.tone; tone.classList.remove('hidden');
+                const cls = {"正式":"tone-formal","急迫":"tone-urgent","不滿":"tone-angry","放鬆":"tone-casual","疑惑":"tone-doubt"};
+                tone.className = `tone-tag ${cls[res.tone] || "tone-formal"}`;
+            }
+        }
+
+        // 綁定事件
+        document.getElementById('loadSheetBtn').addEventListener('click', fetchGlossaryFromSheet);
+        document.getElementById('openSheetBtn').addEventListener('click', () => window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, '_blank'));
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!recognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'ko-KR';
+                recognition.onresult = (e) => {
+                    let interim = '';
+                    for (let i = e.resultIndex; i < e.results.length; ++i) {
+                        if (e.results[i].isFinal) processLine(e.results[i][0].transcript);
+                        else interim += e.results[i][0].transcript;
+                    }
+                    interimTextDiv.innerText = interim;
+                };
+                recognition.onend = () => { if(isListening) recognition.start(); };
+            }
+            recognition.start();
+            isListening = true;
+            document.getElementById('startBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+            document.getElementById('liveDot').classList.replace('bg-slate-300', 'bg-emerald-500');
+            document.getElementById('statusTag').innerText = "LIVE";
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            recognition.stop();
+            isListening = false;
+            document.getElementById('startBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('liveDot').classList.replace('bg-emerald-500', 'bg-slate-300');
+            document.getElementById('statusTag').innerText = "IDLE";
+        });
+
+        document.getElementById('copyToClipboardBtn').addEventListener('click', () => {
+            const text = `摘要：\n${summaryText.innerText}\n\n對話紀錄：\n` + transcriptHistory.map(m => `[${m.time}] ${m.translation}`).join('\n');
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            const toast = document.getElementById('copyToast');
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            const blob = new Blob([transcriptHistory.map(m => `[${m.time}] ${m.kr}\n${m.translation}`).join('\n\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `Meeting_Log.txt`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 200);
+        });
+    </script>
+</body>
+</html>
