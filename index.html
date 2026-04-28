@@ -204,14 +204,13 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
         // --- 核心設定 ---
-        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY
         const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o"; 
         const appId = "g-trans-v3";
         
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
         const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
         
-        // 安全處理 Firebase 初始化，避開環境變數缺失導致的崩潰
+        // 安全處理 Firebase 初始化
         let auth;
         try {
             const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
@@ -232,7 +231,6 @@
                     if (u) document.getElementById('syncStatus').innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 雲端功能就緒`;
                 });
             } else {
-                console.info("Firebase 配置未偵測，同步至試算表與翻譯功能仍可運作。");
                 document.getElementById('syncStatus').innerHTML = `<i class="fas fa-info-circle text-blue-400"></i> 外部部署模式`;
             }
         } catch (e) {
@@ -278,7 +276,7 @@
             try {
                 const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
                 const response = await fetch(url);
-                if (!response.ok) throw new Error("讀取失敗，請確認分頁名稱是否存在。");
+                if (!response.ok) throw new Error("讀取失敗");
                 const csvData = await response.text();
                 parseGlossaryCSV(csvData);
                 syncStatus.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 已連線: ${gameName}`;
@@ -324,7 +322,6 @@
             const gameName = gameNameInput.value.trim();
             if (!gameName || terms.length === 0) return;
             try {
-                // 使用 no-cors 模式發送，避開瀏覽器對於 GAS 的 CORS 預檢限制
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -336,7 +333,7 @@
             }
         }
 
-        // Gemini AI 核心呼叫
+        // Gemini AI 核心呼叫 (包含指數退避重試邏輯)
         async function callGemini(prompt, sys, options = {}) {
             const { schema = false, tools = [] } = options;
             const payload = {
@@ -346,14 +343,43 @@
             if (schema) payload.generationConfig = { responseMimeType: "application/json" };
             if (tools.length > 0) payload.tools = tools;
 
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error("AI 請求失敗，請確認 API Key 是否有效。");
-            const data = await res.json();
-            return data.candidates[0].content.parts[0].text;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            // 指數退避重試邏輯 (1s, 2s, 4s, 8s, 16s)
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res.ok) {
+                        const data = await res.json();
+                        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    }
+                    
+                    if (res.status === 401 || res.status === 403) {
+                        throw new Error(`API Key 無效或無權限 (錯誤代碼: ${res.status})。請檢查 Google Cloud 控制台是否啟用了 Generative Language API。`);
+                    }
+                    
+                    if (res.status === 429 || res.status >= 500) {
+                        // 如果是流量限制或伺服器錯誤，則進行重試
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    
+                    const errData = await res.json();
+                    throw new Error(`AI 請求失敗 (${res.status}): ${errData.error?.message || '未知錯誤'}`);
+                    
+                } catch (e) {
+                    if (i === 4) throw e; // 最後一次重試失敗，拋出錯誤
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
         }
 
         // 背景搜尋並提取術語
@@ -384,7 +410,7 @@
                 }
             } catch (e) {
                 console.error(e);
-                contextStatus.innerText = "❌ 搜尋過程發生錯誤，請檢查主控台。";
+                contextStatus.innerHTML = `<span class="text-red-500">❌ ${e.message}</span>`;
             } finally {
                 document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
             }
@@ -407,7 +433,10 @@
                 updateChatBubble(msgId, result);
                 transcriptHistory.push({ ...result, kr: krText, time });
                 if (transcriptHistory.length % 2 === 0) updateSummary();
-            } catch (e) { console.error("翻譯出錯:", e); }
+            } catch (e) { 
+                console.error("翻譯出錯:", e);
+                updateChatBubble(msgId, { translation: `[翻譯錯誤: ${e.message}]` });
+            }
         }
 
         async function updateSummary() {
@@ -441,7 +470,7 @@
             const zhElem = document.getElementById(`zh-${id}`);
             if (zhElem) zhElem.innerText = res.translation;
             const tone = document.getElementById('tone-' + id);
-            if (tone) {
+            if (tone && res.tone) {
                 tone.innerText = res.tone; tone.classList.remove('hidden');
                 const cls = {"正式":"tone-formal","急迫":"tone-urgent","不滿":"tone-angry","放鬆":"tone-casual","疑惑":"tone-doubt"};
                 tone.className = `tone-tag ${cls[res.tone] || "tone-formal"}`;
