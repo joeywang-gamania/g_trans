@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Trans | 藏青專業版 (具備存檔功能)</title>
+    <title>G-Trans | 藏青專業版 (具備存檔與超時停止功能)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -136,6 +136,7 @@
                         <button id="fetchContextBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md">
                             <i class="fas fa-search"></i> 搜尋背景並同步術語
                         </button>
+                        <p class="text-[9px] text-slate-400 text-center mt-1">※ 此操作上限為 3 分鐘，超時將自動停止</p>
                     </div>
                 </div>
 
@@ -240,7 +241,7 @@
         let recognition;
         let isListening = false;
 
-        // --- Persistence Logic (持久化邏輯) ---
+        // --- Persistence Logic ---
         
         function saveSessionData() {
             localStorage.setItem('gtrans_transcript', JSON.stringify(transcriptHistory));
@@ -277,7 +278,7 @@
                 localStorage.removeItem('gtrans_actions');
                 transcriptHistory = [];
                 actionItemsHistory = [];
-                chatBox.innerHTML = ''; // 清空 UI
+                chatBox.innerHTML = ''; 
                 summaryText.innerText = "摘要將在此顯示...";
                 actionItemsList.innerHTML = '<div class="text-slate-300 text-xs italic text-center py-10">尚無識別項目...</div>';
                 document.getElementById('emptyState').classList.remove('hidden');
@@ -299,7 +300,7 @@
                 tokenInput.value = savedToken;
             }
             checkTokenStatus();
-            loadSessionData(); // 載入先前會議進度
+            loadSessionData();
         });
 
         tokenInput.addEventListener('input', () => {
@@ -334,7 +335,10 @@
             return cleaned;
         }
 
-        async function callGemini(prompt, sys, options = {}) {
+        /**
+         * 呼叫 Gemini API，支援中斷訊號 (AbortSignal)
+         */
+        async function callGemini(prompt, sys, options = {}, signal = null) {
             const token = tokenInput.value.trim();
             if (!token) throw new Error("請先填入 Access Token。");
 
@@ -354,7 +358,8 @@
                     const res = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payload),
+                        signal: signal // 傳入中斷訊號
                     });
                     if (res.ok) {
                         const data = await res.json();
@@ -368,6 +373,7 @@
                     }
                     throw new Error(`AI 請求失敗 (${res.status})`);
                 } catch (e) {
+                    if (e.name === 'AbortError') throw e; // 如果是手動中斷，直接拋出
                     if (i === 4) throw e;
                     await new Promise(r => setTimeout(r, delay));
                     delay *= 2;
@@ -412,22 +418,64 @@
 
         // --- Event Handlers ---
 
+        /**
+         * 搜尋背景與術語同步，具備 3 分鐘超時停止功能
+         */
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請輸入遊戲名稱");
-            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
+            
+            document.getElementById('fetchContextBtn').disabled = true;
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋中...`;
+            contextStatus.innerText = "🔍 搜尋中，若超過 3 分鐘將自動中斷...";
+
+            // 建立 AbortController
+            const controller = new AbortController();
+            const signal = controller.signal;
+
+            // 設定 3 分鐘 (180,000 毫秒) 超時
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 180000);
+
             try {
-                const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] });
+                // 1. 搜尋背景
+                const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] }, signal);
+                
+                // 2. 提取 JSON
                 const extractPrompt = `根據內容提取中韓對照術語，僅輸出 JSON 格式：\n${searchRes}`;
-                const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
+                const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true }, signal);
+                
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
+                
                 if (Array.isArray(newTerms)) {
-                    newTerms.forEach(t => { if (t.kr && t.zh) glossaryList.innerHTML += `<div class="p-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] mb-1"><b>${t.kr}</b> -> ${t.zh}</div>`; });
-                    await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ game: game, terms: newTerms }) });
-                    contextStatus.innerText = `✅ 同步完成！`;
+                    newTerms.forEach(t => { 
+                        if (t.kr && t.zh) glossaryList.innerHTML += `<div class="p-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] mb-1"><b>${t.kr}</b> -> ${t.zh}</div>`; 
+                    });
+                    
+                    // 同步至 Sheets (no-cors 模式不受 AbortSignal 影響或直接執行，此處維持原狀)
+                    await fetch(SCRIPT_URL, { 
+                        method: 'POST', 
+                        mode: 'no-cors', 
+                        body: JSON.stringify({ game: game, terms: newTerms }),
+                        signal: signal 
+                    });
+                    
+                    contextStatus.innerText = `✅ 同步完成！共獲取 ${newTerms.length} 個術語。`;
                 }
-            } catch (e) { contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ ${e.message}</span>`; }
-            finally { document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`; }
+                
+                clearTimeout(timeoutId); // 成功完成則清除計時器
+
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ 搜尋超時（已達 3 分鐘限制），已停止執行。</span>`;
+                } else {
+                    contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ 發生錯誤: ${e.message}</span>`;
+                }
+            } finally { 
+                document.getElementById('fetchContextBtn').disabled = false;
+                document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`; 
+            }
         });
 
         async function processLine(krText) {
@@ -437,7 +485,7 @@
             const time = new Date().toLocaleTimeString();
             renderChatBubbleUI(msgId, krText, "翻譯中...", time, null);
 
-            const sys = `你是專業台韓遊戲口譯。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
+            const sys = `你是專業台韓遊戲口譯。術語庫參考當前專案背景。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
             try {
                 const rawRes = await callGemini(krText, sys, { schema: true });
                 const result = JSON.parse(cleanJsonString(rawRes));
@@ -449,10 +497,10 @@
                 toneTag.className = `tone-tag ${cls[result.tone] || "tone-formal"}`;
 
                 transcriptHistory.push({ id: msgId, kr: krText, translation: result.translation, time, tone: result.tone });
-                saveSessionData(); // 存檔
+                saveSessionData(); 
 
                 if (transcriptHistory.length % 2 === 0) updateSummary();
-            } catch (e) { document.getElementById(`zh-${msgId}`).innerText = `[連線錯誤: ${e.message}]`; }
+            } catch (e) { document.getElementById(`zh-${msgId}`).innerText = `[錯誤: ${e.message}]`; }
         }
 
         async function updateSummary() {
@@ -465,7 +513,7 @@
                 summaryText.innerText = data.summary;
                 actionItemsHistory = data.tasks;
                 renderActionItemsUI(actionItemsHistory);
-                saveSessionData(); // 存檔
+                saveSessionData();
             } catch (e) { console.error("Summary Error"); }
             document.getElementById('summaryLoading').classList.replace('opacity-100', 'opacity-0');
         }
@@ -473,7 +521,7 @@
         // --- Voice Controls ---
 
         document.getElementById('startBtn').addEventListener('click', () => {
-            if(!tokenInput.value.trim()) return alert("請先填入 Access Token。");
+            if(!tokenInput.value.trim()) return alert("啟動前請先填入 Access Token。");
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!recognition) {
                 recognition = new SpeechRecognition();
