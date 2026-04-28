@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Trans | 藏青專業版 (具備存檔與超時停止功能)</title>
+    <title>G-Trans | 藏青專業版 (具備存檔、超時停止與雙向同步功能)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -134,9 +134,9 @@
                             </div>
                         </div>
                         <button id="fetchContextBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md">
-                            <i class="fas fa-search"></i> 搜尋背景並同步術語
+                            <i class="fas fa-search"></i> 搜尋並同步雲端術語
                         </button>
-                        <p class="text-[9px] text-slate-400 text-center mt-1">※ 此操作上限為 3 分鐘，超時將自動停止</p>
+                        <p class="text-[9px] text-slate-400 text-center mt-1">※ 搜尋上限 3 分鐘，結束後將自動匯入表單資料</p>
                     </div>
                 </div>
 
@@ -202,7 +202,7 @@
                         <i id="summaryLoading" class="fas fa-circle-notch loading-spinner opacity-0 transition-opacity"></i>
                     </div>
                     <div id="summaryText" class="text-sm leading-relaxed text-slate-200 font-medium">
-                        摘要將在此顯示...
+                        摘要將根據對話內容自動生成...
                     </div>
                 </div>
 
@@ -238,6 +238,7 @@
 
         let transcriptHistory = [];
         let actionItemsHistory = [];
+        let customGlossary = {};
         let recognition;
         let isListening = false;
 
@@ -324,6 +325,59 @@
             }
         }
 
+        // --- Google Sheets Fetch Logic (從表單匯入) ---
+
+        async function fetchGlossaryFromSheet() {
+            const gameName = gameNameInput.value.trim();
+            if (!gameName) return;
+            
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
+                const response = await fetch(url);
+                if (!response.ok) return;
+                
+                const csvData = await response.text();
+                parseGlossaryCSV(csvData);
+                renderGlossaryUI();
+                console.log("Glossary reloaded from Sheet");
+            } catch (error) {
+                console.error("Failed to fetch from sheet:", error);
+            }
+        }
+
+        function parseGlossaryCSV(csvText) {
+            // 每次匯入前清空當前本地術語庫，確保以表單為準
+            customGlossary = {};
+            const lines = csvText.split(/\r?\n/);
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+                // 簡單的 CSV 解析 (處理引號中的逗號)
+                const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                if (parts && parts.length >= 2) {
+                    const kr = parts[0].replace(/"/g, '').trim();
+                    const zh = parts[1].replace(/"/g, '').trim();
+                    const desc = parts[2] ? parts[2].replace(/"/g, '').trim() : "";
+                    if (kr && zh) customGlossary[kr] = { zh, desc };
+                }
+            }
+        }
+
+        function renderGlossaryUI() {
+            glossaryList.innerHTML = '';
+            const entries = Object.entries(customGlossary);
+            if (entries.length === 0) {
+                glossaryList.innerHTML = `<div class="text-slate-400 italic text-center py-6">尚無術語。</div>`;
+                return;
+            }
+            entries.forEach(([kr, data]) => {
+                const div = document.createElement('div');
+                div.className = "p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-[10px] mb-1 shadow-sm";
+                div.innerHTML = `<span><b class="text-navy-900">${kr}</b> <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${data.zh}</span>`;
+                glossaryList.appendChild(div);
+            });
+        }
+
         // --- Core Translation & API Logic ---
 
         function cleanJsonString(str) {
@@ -335,9 +389,6 @@
             return cleaned;
         }
 
-        /**
-         * 呼叫 Gemini API，支援中斷訊號 (AbortSignal)
-         */
         async function callGemini(prompt, sys, options = {}, signal = null) {
             const token = tokenInput.value.trim();
             if (!token) throw new Error("請先填入 Access Token。");
@@ -359,7 +410,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify(payload),
-                        signal: signal // 傳入中斷訊號
+                        signal: signal 
                     });
                     if (res.ok) {
                         const data = await res.json();
@@ -373,7 +424,7 @@
                     }
                     throw new Error(`AI 請求失敗 (${res.status})`);
                 } catch (e) {
-                    if (e.name === 'AbortError') throw e; // 如果是手動中斷，直接拋出
+                    if (e.name === 'AbortError') throw e; 
                     if (i === 4) throw e;
                     await new Promise(r => setTimeout(r, delay));
                     delay *= 2;
@@ -419,63 +470,66 @@
         // --- Event Handlers ---
 
         /**
-         * 搜尋背景與術語同步，具備 3 分鐘超時停止功能
+         * 搜尋背景與術語同步
+         * 邏輯：AI 搜尋 (3分限時) -> 寫入雲端 -> 不論成敗最後皆從表單「匯入」最新資料
          */
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請輸入遊戲名稱");
             
             document.getElementById('fetchContextBtn').disabled = true;
-            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋中...`;
-            contextStatus.innerText = "🔍 搜尋中，若超過 3 分鐘將自動中斷...";
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
+            contextStatus.innerText = "🔍 搜尋背景中並同步雲端術語...";
 
-            // 建立 AbortController
             const controller = new AbortController();
-            const signal = controller.signal;
-
-            // 設定 3 分鐘 (180,000 毫秒) 超時
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-            }, 180000);
+            const timeoutId = setTimeout(() => controller.abort(), 180000);
 
             try {
-                // 1. 搜尋背景
-                const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] }, signal);
+                // 1. 執行 AI 搜尋
+                const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] }, controller.signal);
                 
-                // 2. 提取 JSON
+                // 2. 提取術語 JSON
                 const extractPrompt = `根據內容提取中韓對照術語，僅輸出 JSON 格式：\n${searchRes}`;
-                const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true }, signal);
+                const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true }, controller.signal);
                 
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
                 
-                if (Array.isArray(newTerms)) {
-                    newTerms.forEach(t => { 
-                        if (t.kr && t.zh) glossaryList.innerHTML += `<div class="p-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] mb-1"><b>${t.kr}</b> -> ${t.zh}</div>`; 
-                    });
-                    
-                    // 同步至 Sheets (no-cors 模式不受 AbortSignal 影響或直接執行，此處維持原狀)
+                if (Array.isArray(newTerms) && newTerms.length > 0) {
+                    // 3. 寫入到 Google Sheets
                     await fetch(SCRIPT_URL, { 
                         method: 'POST', 
                         mode: 'no-cors', 
-                        body: JSON.stringify({ game: game, terms: newTerms }),
-                        signal: signal 
+                        body: JSON.stringify({ game: game, terms: newTerms })
                     });
-                    
-                    contextStatus.innerText = `✅ 同步完成！共獲取 ${newTerms.length} 個術語。`;
                 }
                 
-                clearTimeout(timeoutId); // 成功完成則清除計時器
+                contextStatus.innerText = `✅ AI 搜尋完成，正在從表單重新載入資料...`;
 
             } catch (e) {
                 if (e.name === 'AbortError') {
-                    contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ 搜尋超時（已達 3 分鐘限制），已停止執行。</span>`;
+                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ 搜尋超時 (3分鐘)，正在從表單載入現有資料...</span>`;
                 } else {
-                    contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ 發生錯誤: ${e.message}</span>`;
+                    console.error(e);
+                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ AI 搜尋異常，正在從表單載入現有資料...</span>`;
                 }
             } finally { 
+                clearTimeout(timeoutId);
+                // --- 關鍵邏輯：無論搜尋結果如何，最後都從 Google Sheet 重新拉取一次 ---
+                await fetchGlossaryFromSheet();
+                
                 document.getElementById('fetchContextBtn').disabled = false;
-                document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`; 
+                document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋並同步雲端術語`; 
+                if (!contextStatus.innerHTML.includes("⚠️")) {
+                    contextStatus.innerText = `✅ 術語庫同步完成！(包含 AI 搜尋與表單匯入)`;
+                }
             }
+        });
+
+        // 手動載入按鈕
+        document.getElementById('loadSheetBtn').addEventListener('click', async () => {
+            syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-navy-900"></i> 同步中...`;
+            await fetchGlossaryFromSheet();
+            syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> 表單已連線`;
         });
 
         async function processLine(krText) {
@@ -485,7 +539,10 @@
             const time = new Date().toLocaleTimeString();
             renderChatBubbleUI(msgId, krText, "翻譯中...", time, null);
 
-            const sys = `你是專業台韓遊戲口譯。術語庫參考當前專案背景。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
+            // 帶入當前已知的術語作為翻譯參考
+            const glossaryStr = Object.entries(customGlossary).map(([k,v])=>`${k}=>${v.zh}`).join(', ');
+            const sys = `你是專業台韓遊戲口譯。術語庫優先參考：${glossaryStr}。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
+            
             try {
                 const rawRes = await callGemini(krText, sys, { schema: true });
                 const result = JSON.parse(cleanJsonString(rawRes));
@@ -500,7 +557,7 @@
                 saveSessionData(); 
 
                 if (transcriptHistory.length % 2 === 0) updateSummary();
-            } catch (e) { document.getElementById(`zh-${msgId}`).innerText = `[錯誤: ${e.message}]`; }
+            } catch (e) { document.getElementById(`zh-${msgId}`).innerText = `[翻譯異常: ${e.message}]`; }
         }
 
         async function updateSummary() {
@@ -555,7 +612,9 @@
             document.getElementById('statusTag').innerText = "IDLE";
         });
 
-        // --- Export ---
+        // --- Utils ---
+        document.getElementById('openSheetBtn').addEventListener('click', () => window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, '_blank'));
+        
         document.getElementById('copyToClipboardBtn').addEventListener('click', () => {
             const fullContent = `會議摘要：\n${summaryText.innerText}\n\n詳細紀錄：\n` + transcriptHistory.map(m => `[${m.time}] ${m.translation}`).join('\n');
             const textArea = document.createElement("textarea");
