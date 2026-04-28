@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gamania-Trans</title>
+    <title>G-Trans 3.0: 跨國遊戲會議助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -76,17 +76,17 @@
         <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div class="flex items-center gap-4">
-                <div class="bg-green-600 p-3 rounded-2xl shadow-lg">
+                <div class="bg-indigo-600 p-3 rounded-2xl shadow-lg">
                     <i class="fas fa-sync text-white text-2xl"></i>
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">G-Trans 3.0</h1>
-                    <p class="text-slate-500 text-sm">遊戲業專用(台韓) · Sheets 自動同步</p>
+                    <p class="text-slate-500 text-sm">遊戲業專用 · 線上正式部署版</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
                 <div id="syncStatus" class="text-xs text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-200">
-                    <i class="fas fa-link"></i> 尚未同步分頁
+                    <i class="fas fa-info-circle text-blue-400"></i> 等待專案設定
                 </div>
                 <div id="audioVisualizer" class="flex items-end gap-1 h-8 px-4 bg-white rounded-full border border-slate-200">
                     <div class="visualizer-bar w-1 bg-slate-300 h-1"></div>
@@ -98,7 +98,7 @@
                         <i class="fas fa-copy"></i> 複製到 Google Docs
                     </button>
                     <button id="exportBtn" class="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm transition-all flex items-center gap-2">
-                        <i class="fas fa-file-export"></i> 匯出
+                        <i class="fas fa-file-export"></i> 匯出紀錄
                     </button>
                 </div>
             </div>
@@ -107,15 +107,14 @@
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <!-- Left Sidebar -->
             <div class="lg:col-span-3 space-y-6 side-panel overflow-y-auto pr-2">
-                <!-- Project Settings -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">專案設定</h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-[11px] text-slate-500 mb-1 font-bold">當前遊戲 (對應分頁名稱)</label>
+                            <label class="block text-[11px] text-slate-500 mb-1 font-bold">遊戲名稱 (對應試算表分頁)</label>
                             <div class="flex gap-2">
-                                <input type="text" id="gameName" placeholder="例: 新瑪奇" class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all">
-                                <button id="loadSheetBtn" title="同步分頁數據" class="bg-green-100 p-2 rounded-xl hover:bg-green-200 text-green-700 transition-colors">
+                                <input type="text" id="gameName" placeholder="例如: 新瑪奇" class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all">
+                                <button id="loadSheetBtn" title="同步數據" class="bg-green-100 p-2 rounded-xl hover:bg-green-200 text-green-700 transition-colors">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
@@ -123,11 +122,10 @@
                         <button id="fetchContextBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all">
                             <i class="fas fa-search"></i> 搜尋背景並同步術語
                         </button>
-                        <div id="contextStatus" class="text-[10px] text-slate-400 mt-1 italic leading-tight">搜尋結果會自動同步至 Sheet 分頁。</div>
+                        <div id="contextStatus" class="text-[10px] text-slate-400 mt-1 italic leading-tight">搜尋結果會自動同步至 Google Sheet。</div>
                     </div>
                 </div>
 
-                <!-- Glossary Display -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">試算表術語庫</h2>
@@ -136,11 +134,10 @@
                         </button>
                     </div>
                     <div id="glossaryList" class="space-y-2 max-h-60 overflow-y-auto mb-2 text-[11px]">
-                        <div class="text-slate-400 italic text-center py-4">請輸入遊戲名稱並同步數據...</div>
+                        <div class="text-slate-400 italic text-center py-4">請輸入名稱並同步數據...</div>
                     </div>
                 </div>
 
-                <!-- Controls -->
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                     <button id="startBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-100">
                         <i class="fas fa-microphone"></i> 啟動會議翻譯
@@ -165,7 +162,7 @@
                     <div id="chatBox" class="chat-container overflow-y-auto p-6 space-y-6 scroll-smooth">
                         <div id="emptyState" class="flex flex-col items-center justify-center h-full text-center space-y-4 max-w-sm mx-auto opacity-50">
                             <i class="fas fa-language text-5xl text-slate-200"></i>
-                            <p class="text-sm">尚未有對話。同步試算表後即可開始會議。</p>
+                            <p class="text-sm">等待對話中。同步試算表後即可啟動翻譯。</p>
                         </div>
                     </div>
 
@@ -185,7 +182,7 @@
                         <i id="summaryLoading" class="fas fa-circle-notch loading-spinner opacity-0 transition-opacity"></i>
                     </div>
                     <div id="summaryText" class="text-sm leading-relaxed text-indigo-100">
-                        待會對話產生後，這裡會出現摘要...
+                        待會對話產生後顯示摘要...
                     </div>
                 </div>
 
@@ -206,23 +203,19 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
-        // --- 核心設定 ---
-        // 在預覽環境中保持為空字串，系統會自動處理 Key；部署到外部時請填入您的 Key。
-        const apiKey = ""; 
-        const appId = "g-trans-v3";
-        
+        // --- 正式環境設定 ---
+        // 重要：部署到 GitHub 時，請務必在此填入正確的 API Key
+        const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o"; 
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
         const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
         
-        // 安全處理 Firebase 初始化
+        // 安全初始化 Firebase (兼容正式網域環境)
         let auth;
         try {
-            const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
-            if (hasFirebaseConfig) {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                const app = initializeApp(firebaseConfig);
+            const config = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            if (config) {
+                const app = initializeApp(config);
                 auth = getAuth(app);
-                
                 const initAuth = async () => {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
@@ -235,10 +228,10 @@
                     if (u) document.getElementById('syncStatus').innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 雲端功能就緒`;
                 });
             } else {
-                document.getElementById('syncStatus').innerHTML = `<i class="fas fa-info-circle text-blue-400"></i> 外部部署模式`;
+                document.getElementById('syncStatus').innerHTML = `<i class="fas fa-globe text-blue-400"></i> 正式部署模式`;
             }
         } catch (e) {
-            console.warn("Firebase 初始化跳過:", e);
+            console.log("Firebase Standalone Mode");
         }
 
         let recognition;
@@ -248,7 +241,7 @@
         let transcriptHistory = [];
         let actionItemsHistory = [];
 
-        // DOM 元素
+        // DOM Selectors
         const chatBox = document.getElementById('chatBox');
         const summaryText = document.getElementById('summaryText');
         const actionItemsList = document.getElementById('actionItemsList');
@@ -258,33 +251,28 @@
         const glossaryList = document.getElementById('glossaryList');
         const syncStatus = document.getElementById('syncStatus');
 
+        // Helper: Clean AI JSON string
         function cleanJsonString(str) {
             if (!str) return "";
-            // 移除可能存在的 Markdown JSON 標記
             let cleaned = str.replace(/```json/g, '').replace(/```/g, '').trim();
             const start = Math.max(cleaned.indexOf('['), cleaned.indexOf('{'));
             const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
-            if (start !== -1 && end !== -1) {
-                return cleaned.substring(start, end + 1);
-            }
+            if (start !== -1 && end !== -1) return cleaned.substring(start, end + 1);
             return cleaned;
         }
 
-        // Google Sheets 讀取邏輯
+        // Fetch from Google Sheets
         async function fetchGlossaryFromSheet() {
             const gameName = gameNameInput.value.trim();
-            if (!gameName) {
-                alert("請輸入遊戲名稱（分頁名稱）。");
-                return;
-            }
-            syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-yellow-500"></i> 同步數據中...`;
+            if (!gameName) return alert("請輸入遊戲名稱");
+            syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-yellow-500"></i> 同步中...`;
             try {
                 const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
                 const response = await fetch(url);
-                if (!response.ok) throw new Error("讀取失敗，請確認分頁名稱是否存在。");
+                if (!response.ok) throw new Error("分頁讀取失敗");
                 const csvData = await response.text();
                 parseGlossaryCSV(csvData);
-                syncStatus.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 已連線: ${gameName}`;
+                syncStatus.innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 已同步: ${gameName}`;
                 renderGlossary();
             } catch (error) {
                 syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-red-500"></i> 同步失敗`;
@@ -322,7 +310,7 @@
             });
         }
 
-        // Google Sheets 同步寫入
+        // Sync back to Sheet
         async function syncTermsToSheet(terms) {
             const gameName = gameNameInput.value.trim();
             if (!gameName || terms.length === 0) return;
@@ -334,11 +322,11 @@
                     body: JSON.stringify({ game: gameName, terms: terms })
                 });
             } catch (err) {
-                console.error("同步至試算表失敗:", err);
+                console.error("Sheet Sync Error:", err);
             }
         }
 
-        // Gemini AI 核心呼叫 (包含指數退避重試邏輯)
+        // --- Standardized callGemini with exponential backoff ---
         async function callGemini(prompt, sys, options = {}) {
             const { schema = false, tools = [] } = options;
             const payload = {
@@ -348,7 +336,8 @@
             if (schema) payload.generationConfig = { responseMimeType: "application/json" };
             if (tools.length > 0) payload.tools = tools;
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            // 使用穩定版模型名稱：gemini-1.5-flash
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             
             let delay = 1000;
             for (let i = 0; i < 5; i++) {
@@ -365,43 +354,35 @@
                     }
                     
                     const errData = await res.json().catch(() => ({}));
-                    const errMsg = errData.error?.message || `HTTP ${res.status}`;
-                    
-                    if (res.status === 401 || res.status === 403) {
-                        throw new Error(`API Key 權限錯誤 (${res.status}): ${errMsg}`);
-                    }
+                    if (res.status === 404) throw new Error("模型名稱失效，請檢查代碼中的模型字串。");
+                    if (res.status === 401 || res.status === 403) throw new Error(`API Key 權限錯誤: ${res.status}`);
                     
                     if (res.status === 429 || res.status >= 500) {
-                        await new Promise(resolve => setTimeout(resolve, delay));
+                        await new Promise(r => setTimeout(r, delay));
                         delay *= 2;
                         continue;
                     }
-                    
-                    throw new Error(`AI 請求失敗 (${res.status}): ${errMsg}`);
-                    
+                    throw new Error(`AI 請求失敗 (${res.status}): ${errData.error?.message || '未知錯誤'}`);
                 } catch (e) {
                     if (i === 4) throw e;
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    await new Promise(r => setTimeout(r, delay));
                     delay *= 2;
                 }
             }
         }
 
-        // 背景搜尋並提取術語
+        // Fetch Background and Sync
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請先輸入遊戲名稱");
-            
-            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
-            contextStatus.innerText = "🔍 正在搜尋台韓術語並同步至試算表...";
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 同步中...`;
+            contextStatus.innerText = "🔍 搜尋網路背景並更新術語庫...";
 
             try {
-                // 1. 搜尋背景
-                const searchRes = await callGemini(`請詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位精通台韓遊戲產業的資深顧問。", { tools: [{ "google_search": {} }] });
+                const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照與核心機制。`, "你是一位精通台韓遊戲產業的資深顧問。", { tools: [{ "google_search": {} }] });
                 gameContext = searchRes;
 
-                // 2. 結構化提取 JSON
-                const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 陣列，不要有任何解釋：\n${searchRes}`;
+                const extractPrompt = `根據以下內容，提取中韓對照術語，僅輸出 JSON 格式：\n${searchRes}`;
                 const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
 
@@ -411,19 +392,16 @@
                     });
                     renderGlossary();
                     await syncTermsToSheet(newTerms);
-                    contextStatus.innerText = `✅ 已更新並發送 ${newTerms.length} 個術語至試算表。`;
-                } else {
-                    contextStatus.innerText = "✅ 搜尋完成，但未發現新的術語格式。";
+                    contextStatus.innerText = `✅ 同步成功！已獲取 ${newTerms.length} 個新術語。`;
                 }
             } catch (e) {
-                console.error(e);
-                contextStatus.innerHTML = `<span class="text-red-500 font-bold">❌ 發生錯誤：${e.message}</span>`;
+                contextStatus.innerHTML = `<span class="text-red-500">❌ 錯誤: ${e.message}</span>`;
             } finally {
                 document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
             }
         });
 
-        // 核心翻譯與摘要
+        // Core Translation Logic
         async function processLine(krText) {
             if (!krText.trim()) return;
             document.getElementById('emptyState').classList.add('hidden');
@@ -441,15 +419,14 @@
                 transcriptHistory.push({ ...result, kr: krText, time });
                 if (transcriptHistory.length % 2 === 0) updateSummary();
             } catch (e) { 
-                console.error("翻譯出錯:", e);
-                updateChatBubble(msgId, { translation: `[翻譯錯誤: ${e.message}]` });
+                updateChatBubble(msgId, { translation: `[AI 暫時中斷: ${e.message}]` });
             }
         }
 
         async function updateSummary() {
             document.getElementById('summaryLoading').classList.replace('opacity-0', 'opacity-100');
             const history = transcriptHistory.slice(-10).map(m => `[${m.time}] ${m.translation}`).join('\n');
-            const sys = `產出摘要與代辦清單。JSON: {"summary": "...", "tasks": [{"title": "...", "due": "...", "priority": "高/中/低"}]}`;
+            const sys = `產出摘要與代辦項目。JSON: {"summary": "...", "tasks": [{"title": "...", "due": "...", "priority": "高/中/低"}]}`;
             try {
                 const rawRes = await callGemini(history, sys, { schema: true });
                 const data = JSON.parse(cleanJsonString(rawRes));
@@ -458,10 +435,10 @@
                 actionItemsList.innerHTML = data.tasks.map(t => `
                     <div class="p-3 bg-white border-l-4 ${t.priority==='高'?'border-rose-500':'border-indigo-400'} rounded-xl shadow-sm border border-slate-100">
                         <p class="text-xs font-bold text-slate-800">${t.title}</p>
-                        <p class="text-[9px] text-slate-400 mt-1">期限: ${t.due} | ${t.priority}優先</p>
+                        <p class="text-[9px] text-slate-400 uppercase mt-1">期限: ${t.due} | ${t.priority}優先</p>
                     </div>
                 `).join('');
-            } catch (e) { console.error("摘要更新失敗:", e); }
+            } catch (e) { console.error("Summary Error"); }
             document.getElementById('summaryLoading').classList.replace('opacity-100', 'opacity-0');
         }
 
@@ -484,7 +461,7 @@
             }
         }
 
-        // 綁定按鈕
+        // Control Bindings
         document.getElementById('loadSheetBtn').addEventListener('click', fetchGlossaryFromSheet);
         document.getElementById('openSheetBtn').addEventListener('click', () => window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, '_blank'));
 
