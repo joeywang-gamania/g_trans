@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Trans | 藏青專業版 (自動化修復版)</title>
+    <title>G-Trans | 藏青企業版 (全自動跨端同步)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -111,7 +111,7 @@
                     <div class="flex justify-between items-center mb-5">
                         <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">企業身分驗證</h2>
                         <div class="flex gap-1">
-                            <button id="shareLinkBtn" title="產生同步連結給其他裝置使用" class="text-[10px] bg-indigo-500/20 hover:bg-indigo-500/40 px-2 py-1 rounded text-indigo-300 transition-colors border border-indigo-500/20"><i class="fas fa-share-alt"></i></button>
+                            <button id="shareLinkBtn" title="產生同步連結給其他裝置使用 (包含當前 Token 與遊戲)" class="text-[10px] bg-indigo-500/20 hover:bg-indigo-500/40 px-2 py-1 rounded text-indigo-300 transition-colors border border-indigo-500/20"><i class="fas fa-share-alt"></i></button>
                             <button id="clearTokenBtn" class="text-[10px] bg-white/5 hover:bg-rose-500/20 px-2 py-1 rounded text-slate-300 transition-colors border border-white/5">清除</button>
                         </div>
                     </div>
@@ -272,7 +272,9 @@
                 actionItemsHistory = JSON.parse(savedActions);
                 renderActionItemsUI(actionItemsHistory);
             }
-            if (savedGameName) gameNameInput.value = savedGameName;
+            // 只有在 URL 參數不存在時才載入快取的遊戲名稱 (避免覆蓋分享連結的設定)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (savedGameName && !urlParams.get('game')) gameNameInput.value = savedGameName;
         }
 
         function clearSessionData() {
@@ -289,20 +291,34 @@
             }
         }
 
-        // --- Initialization ---
+        // --- Initialization (跨端接收端關鍵修復) ---
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = urlParams.get('token');
+            const urlGame = urlParams.get('game'); // 抓取分享連結中的遊戲名稱
             const savedToken = localStorage.getItem('gtrans_access_token');
             
+            // 處理 Token
             if (urlToken) {
                 tokenInput.value = urlToken;
                 localStorage.setItem('gtrans_access_token', urlToken);
-                window.history.replaceState({}, document.title, window.location.pathname);
             } else if (savedToken) {
                 tokenInput.value = savedToken;
             }
+
+            // 處理遊戲名稱並自動觸發表單同步 (非本機環境使用的關鍵)
+            if (urlGame) {
+                gameNameInput.value = decodeURIComponent(urlGame);
+                showToast("已偵測到專案設定，正在自動同步術語庫...");
+                await fetchGlossaryFromSheet(); // 自動從雲端表單載入術語庫
+            }
+
+            // 清理網址列參數 (增加隱私與美觀)
+            if (urlToken || urlGame) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
             checkTokenStatus();
             loadSessionData();
         });
@@ -320,17 +336,23 @@
 
         document.getElementById('resetSessionBtn').addEventListener('click', clearSessionData);
 
+        // 新增功能：產生跨裝置同步連結 (傳送端)
         document.getElementById('shareLinkBtn').addEventListener('click', () => {
             const token = tokenInput.value.trim();
-            if (!token) return alert("請先填入有效的 Token。");
-            const shareUrl = `${window.location.origin}${window.location.pathname}?token=${token}&game=${encodeURIComponent(gameNameInput.value)}`;
+            const game = gameNameInput.value.trim();
+            if (!token) return alert("請先在本機填入或獲取有效的 Token。");
+            
+            // 建立包含 Token 與 遊戲名稱的 URL
+            const shareUrl = `${window.location.origin}${window.location.pathname}?token=${token}${game ? '&game=' + encodeURIComponent(game) : ''}`;
+            
             const textArea = document.createElement("textarea");
             textArea.value = shareUrl;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            showToast("同步連結已複製！將其發送至手機即可直接使用。");
+            
+            showToast("同步連結已複製！將其發送至手機即可直接同步權杖與遊戲專案。");
         });
 
         function checkTokenStatus() {
@@ -348,16 +370,16 @@
             setTimeout(() => toast.style.display = 'none', 3000);
         }
 
-        // --- Google Sheets Fetch Logic (從表單匯入) ---
+        // --- Google Sheets Fetch Logic (雲端表單匯入) ---
 
         async function fetchGlossaryFromSheet() {
             const gameName = gameNameInput.value.trim();
-            if (!gameName) return;
+            if (!gameName) return false;
             
             try {
                 const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
                 const response = await fetch(url);
-                if (!response.ok) return;
+                if (!response.ok) return false;
                 
                 const csvData = await response.text();
                 parseGlossaryCSV(csvData);
@@ -389,7 +411,7 @@
             glossaryList.innerHTML = '';
             const entries = Object.entries(customGlossary);
             if (entries.length === 0) {
-                glossaryList.innerHTML = `<div class="text-slate-400 italic text-center py-6">尚無術語。</div>`;
+                glossaryList.innerHTML = `<div class="text-slate-400 italic text-center py-6">尚未同步資料。</div>`;
                 return;
             }
             entries.forEach(([kr, data]) => {
@@ -413,7 +435,7 @@
 
         async function callGemini(prompt, sys, options = {}, signal = null) {
             const token = tokenInput.value.trim();
-            if (!token) throw new Error("請先填入 Access Token。");
+            if (!token) throw new Error("Access Token 不存在，請從連結帶入或手動輸入。");
 
             const { schema = false, tools = [] } = options;
             const payload = {
@@ -426,7 +448,7 @@
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
             
             let delay = 1000;
-            for (let i = 0; i < 3; i++) { // 減少重試次數以加快超時反饋
+            for (let i = 0; i < 3; i++) {
                 try {
                     const res = await fetch(url, {
                         method: 'POST',
@@ -438,7 +460,7 @@
                         const data = await res.json();
                         return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     }
-                    if (res.status === 403 || res.status === 401) throw new Error("Token 失效或權限錯誤。");
+                    if (res.status === 403 || res.status === 401) throw new Error("Token 失效或權限不足，請更新。");
                     if (res.status === 429 || res.status >= 500) {
                         await new Promise(r => setTimeout(r, delay));
                         delay *= 2;
@@ -456,9 +478,6 @@
 
         // --- Event Handlers ---
 
-        /**
-         * 搜尋背景與術語同步 (強化版)
-         */
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請輸入遊戲名稱");
@@ -469,54 +488,31 @@
             contextStatus.innerText = "🔍 搜尋網路背景中 (限時 3 分鐘)...";
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 分鐘超時
+            const timeoutId = setTimeout(() => controller.abort(), 180000); 
 
             try {
-                // 1. 執行 AI 搜尋背景
                 const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] }, controller.signal);
-                
-                // 2. 提取術語 JSON
                 const extractPrompt = `根據內容提取中韓對照術語，僅輸出 JSON 格式：\n${searchRes}`;
                 const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true }, controller.signal);
-                
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
                 
                 if (Array.isArray(newTerms) && newTerms.length > 0) {
-                    // 3. 寫入到 Google Sheets (背景執行)
-                    fetch(SCRIPT_URL, { 
-                        method: 'POST', 
-                        mode: 'no-cors', 
-                        body: JSON.stringify({ game: game, terms: newTerms })
-                    });
+                    fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ game: game, terms: newTerms }) });
                 }
-                contextStatus.innerText = `✅ AI 搜尋完成，正在從表單重新載入資料...`;
-
+                contextStatus.innerText = `✅ AI 搜尋完成，正在從表單同步資料...`;
             } catch (e) {
                 if (e.name === 'AbortError') {
-                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ 搜尋超時 (3分鐘)，正在從表單載入現有資料...</span>`;
+                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ 搜尋超時，改由表單載入現有資料...</span>`;
                 } else {
-                    console.error("AI Search Error:", e);
-                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ 搜尋受限，正在從表單載入現有資料...</span>`;
+                    contextStatus.innerHTML = `<span class="text-rose-400 font-bold">⚠️ 搜尋受限，改由表單載入現有資料...</span>`;
                 }
             } finally { 
                 clearTimeout(timeoutId);
-                
-                // --- 關鍵修正：確保無論如何都會執行這一步 ---
-                console.log("Proceeding to sheet sync...");
                 const syncSuccess = await fetchGlossaryFromSheet();
-                
                 btn.disabled = false;
                 btn.innerHTML = `<i class="fas fa-search"></i> 搜尋並同步雲端術語`; 
-                
-                if (syncSuccess) {
-                    if (contextStatus.innerHTML.includes("⚠️")) {
-                        // 雖然搜尋超時，但同步表單成功
-                        contextStatus.innerHTML = `<span class="text-emerald-400 font-bold">✅ 已從表單完成術語同步。</span>`;
-                    } else {
-                        contextStatus.innerText = `✅ 術語庫同步完成！`;
-                    }
-                } else {
-                    contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ 同步失敗，請確認網路或分頁名稱。</span>`;
+                if (syncSuccess && !contextStatus.innerHTML.includes("⚠️")) {
+                    contextStatus.innerText = `✅ 術語庫同步完成！`;
                 }
             }
         });
@@ -525,9 +521,9 @@
             syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-navy-900"></i> 同步中...`;
             const success = await fetchGlossaryFromSheet();
             if (success) {
-                syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> 表單已連線`;
+                syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> 表單已同步`;
             } else {
-                syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-rose-500"></i> 連線失敗`;
+                syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-rose-500"></i> 同步失敗`;
             }
         });
 
@@ -539,7 +535,7 @@
             renderChatBubbleUI(msgId, krText, "翻譯中...", time, null);
 
             const glossaryStr = Object.entries(customGlossary).map(([k,v])=>`${k}=>${v.zh}`).join(', ');
-            const sys = `你是專業台韓遊戲口譯。術語庫優先參考：${glossaryStr}。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
+            const sys = `你是專業台韓遊戲口譯。術語庫參考：${glossaryStr}。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
             
             try {
                 const rawRes = await callGemini(krText, sys, { schema: true });
@@ -653,7 +649,7 @@
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            showToast("已成功複製到剪貼簿！");
+            showToast("已成功複製摘要到剪貼簿！");
         });
 
         document.getElementById('exportBtn').addEventListener('click', () => {
