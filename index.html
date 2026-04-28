@@ -203,13 +203,37 @@
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
-        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY
-        const apiKey = "AIzaSyDFDMokxnHmmoXSK5ZsbtBfpMH5HMUIh8o";
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'g-trans-v3';
+        // --- 核心設定 ---
+        // 請確保這裡填入您從 Google AI Studio 獲取的有效 API KEY (目前的看起來不完整)
+        const apiKey = "請在此填入完整的API_KEY"; 
+        const appId = "g-trans-v3";
         
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
         const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
         
+        // 安全處理 Firebase 初始化，避免在 GitHub 環境崩潰
+        let auth, db;
+        try {
+            const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{"apiKey":"na","projectId":"na"}';
+            const firebaseConfig = JSON.parse(firebaseConfigStr);
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            
+            const initAuth = async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else if (auth.config.apiKey !== "na") {
+                    await signInAnonymously(auth);
+                }
+            };
+            initAuth();
+            onAuthStateChanged(auth, u => {
+                if (u) document.getElementById('syncStatus').innerHTML = `<i class="fas fa-check-circle text-green-500"></i> 雲端功能就緒`;
+            });
+        } catch (e) {
+            console.warn("Firebase 初始化跳過 (外部部署環境)");
+        }
+
         let recognition;
         let isListening = false;
         let gameContext = "";
@@ -226,19 +250,6 @@
         const gameNameInput = document.getElementById('gameName');
         const glossaryList = document.getElementById('glossaryList');
         const syncStatus = document.getElementById('syncStatus');
-
-        // Firebase 基礎連線
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
-        initAuth();
 
         function cleanJsonString(str) {
             if (!str) return "";
@@ -314,7 +325,6 @@
                     cache: 'no-cache',
                     body: JSON.stringify({ game: gameName, terms: terms })
                 });
-                console.log("同步請求已發送至 Apps Script (no-cors)");
             } catch (err) {
                 console.error("同步失敗:", err);
             }
@@ -344,7 +354,9 @@
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
             if (!game) return alert("請先輸入遊戲名稱");
-            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋並同步中...`;
+            if (apiKey.includes("填入")) return alert("請先在代碼中填入正確的 Gemini API Key");
+            
+            document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 搜尋中...`;
             contextStatus.innerText = "🔍 正在搜尋台韓術語並同步至試算表...";
 
             try {
@@ -361,10 +373,10 @@
                     });
                     renderGlossary();
                     await syncTermsToSheet(newTerms);
-                    contextStatus.innerText = `✅ 搜尋完成！已成功發送 ${newTerms.length} 個新術語至 Sheet。`;
+                    contextStatus.innerText = `✅ 已發送 ${newTerms.length} 個新術語至 Sheet。`;
                 }
             } catch (e) {
-                contextStatus.innerText = "❌ 處理過程發生錯誤。";
+                contextStatus.innerText = "❌ 處理失敗，請檢查 API Key。";
             } finally {
                 document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
             }
