@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Trans | 藏青專業版</title>
+    <title>G-Trans | 藏青專業版 (具備存檔功能)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -11,17 +11,13 @@
         
         body {
             font-family: 'Noto Sans TC', 'Noto Sans KR', sans-serif;
-            /* 調整為深邃的藏青色漸層背景 */
             background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
             background-attachment: fixed;
             min-height: 100vh;
         }
 
-        /* 藏青色系定義 */
         .bg-navy-900 { background-color: #0f172a; }
-        .bg-navy-800 { background-color: #1e293b; }
         .text-navy-900 { color: #0f172a; }
-        .border-navy-100 { border-color: #e2e8f0; }
 
         .chat-container {
             height: calc(100vh - 420px);
@@ -45,18 +41,11 @@
         .tone-casual { background-color: #f0fdf4; color: #15803d; }
         .tone-doubt { background-color: #fefce8; color: #a16207; }
 
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-
-        .visualizer-bar { transition: height 0.1s ease; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         .loading-spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
         .copy-toast {
@@ -75,12 +64,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
-        @keyframes slideUp {
-            from { transform: translate(-50%, 50px); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
-        }
-
-        /* 針對深色背景優化的陰影 */
+        @keyframes slideUp { from { transform: translate(-50%, 50px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .navy-shadow { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2); }
         
         .glass-header {
@@ -100,17 +84,12 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold text-white">G-Trans 3.0</h1>
-                    <p class="text-slate-400 text-sm font-medium uppercase tracking-widest">Global Translation Hub</p>
+                    <p class="text-slate-400 text-sm font-medium uppercase tracking-widest">Enterprise Translation Hub</p>
                 </div>
             </div>
             <div class="flex items-center gap-3">
                 <div id="syncStatus" class="text-xs text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/10 shadow-inner">
-                    <i class="fas fa-key text-indigo-400"></i> <span class="ml-1">ADC 權杖狀態: 待檢核</span>
-                </div>
-                <div id="audioVisualizer" class="flex items-end gap-1 h-10 px-4 bg-white/5 rounded-xl border border-white/10">
-                    <div class="visualizer-bar w-1.5 bg-slate-500 h-1 rounded-full"></div>
-                    <div class="visualizer-bar w-1.5 bg-slate-400 h-2 rounded-full"></div>
-                    <div class="visualizer-bar w-1.5 bg-indigo-400 h-3 rounded-full opacity-60"></div>
+                    <i class="fas fa-key text-indigo-400"></i> <span class="ml-1 text-xs">權杖狀態: 待檢核</span>
                 </div>
                 <div class="flex gap-2">
                     <button id="copyToClipboardBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl shadow-lg text-sm font-bold transition-all flex items-center gap-2">
@@ -127,7 +106,7 @@
             <!-- Left Sidebar -->
             <div class="lg:col-span-3 space-y-6 side-panel overflow-y-auto pr-2">
                 
-                <!-- ADC / OAuth Token Settings -->
+                <!-- ADC Settings -->
                 <div class="bg-navy-900 text-white p-6 rounded-[32px] shadow-2xl border border-white/10">
                     <div class="flex justify-between items-center mb-5">
                         <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">企業身分驗證</h2>
@@ -137,10 +116,6 @@
                         <div>
                             <label class="block text-[11px] text-slate-500 mb-2 font-bold uppercase tracking-tight">Access Token (ADC)</label>
                             <input type="password" id="accessToken" placeholder="輸入或從 URL 自動帶入..." class="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs text-white transition-all">
-                        </div>
-                        <div class="bg-black/40 p-4 rounded-2xl border border-white/5">
-                            <p class="text-[10px] text-slate-400 mb-2 leading-relaxed">執行以下指令獲取：</p>
-                            <code class="text-[9px] text-indigo-300 break-all select-all block leading-tight">gcloud auth application-default print-access-token</code>
                         </div>
                     </div>
                 </div>
@@ -168,21 +143,23 @@
                 <div class="bg-white p-6 rounded-[32px] shadow-sm navy-shadow">
                     <div class="flex justify-between items-center mb-5">
                         <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">術語庫</h2>
-                        <button id="openSheetBtn" class="text-navy-900 text-xs font-black hover:underline flex items-center gap-1">
-                            <i class="fas fa-external-link-alt"></i> 編輯
-                        </button>
+                        <button id="openSheetBtn" class="text-navy-900 text-xs font-black hover:underline flex items-center gap-1">編輯</button>
                     </div>
-                    <div id="glossaryList" class="space-y-2 max-h-48 overflow-y-auto mb-2 text-[11px]">
+                    <div id="glossaryList" class="space-y-2 max-h-48 overflow-y-auto text-[11px]">
                         <div class="text-slate-400 italic text-center py-6">請先進行同步...</div>
                     </div>
                 </div>
 
-                <div class="bg-white p-4 rounded-[32px] shadow-sm navy-shadow">
+                <!-- Session Controls -->
+                <div class="bg-white p-4 rounded-[32px] shadow-sm navy-shadow space-y-3">
                     <button id="startBtn" class="w-full bg-navy-900 hover:bg-slate-800 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg">
                         <i class="fas fa-microphone"></i> 啟動會議翻譯
                     </button>
                     <button id="stopBtn" class="w-full bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all hidden">
                         <i class="fas fa-stop-circle"></i> 停止錄音
+                    </button>
+                    <button id="resetSessionBtn" class="w-full bg-slate-50 hover:bg-slate-100 text-slate-500 text-xs font-bold py-2 rounded-xl border border-slate-100 transition-all">
+                        <i class="fas fa-trash-alt mr-2"></i> 清空當前會議紀錄
                     </button>
                 </div>
             </div>
@@ -201,7 +178,7 @@
                     <div id="chatBox" class="chat-container overflow-y-auto p-10 space-y-10 scroll-smooth">
                         <div id="emptyState" class="flex flex-col items-center justify-center h-full text-center space-y-4 max-w-sm mx-auto opacity-30">
                             <i class="fas fa-language text-7xl text-navy-900"></i>
-                            <p class="text-sm font-medium leading-relaxed">等待會議對話中。<br>請確保 Token 有效後按啟動按鈕。</p>
+                            <p class="text-sm font-medium leading-relaxed">等待會議對話中。<br>紀錄會自動存檔，刷新頁面也不會消失。</p>
                         </div>
                     </div>
 
@@ -224,7 +201,7 @@
                         <i id="summaryLoading" class="fas fa-circle-notch loading-spinner opacity-0 transition-opacity"></i>
                     </div>
                     <div id="summaryText" class="text-sm leading-relaxed text-slate-200 font-medium">
-                        摘要將根據對話內容自動生成...
+                        摘要將在此顯示...
                     </div>
                 </div>
 
@@ -243,9 +220,7 @@
 
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         
-        // --- 核心配置 ---
         const SHEET_ID = "1GLDRfEbkLtx6tnu9WM756-TjjCINfv1DLfe_IE-_25k";
         const SCRIPT_URL = "https://script.google.com/a/macros/gamania.com/s/AKfycbwDaCWiUntY5WQXllOggk74gkF-AyTF3o7yZe8IvspVZy4Go4Eq5Ts44Bz4C-c4UMdocQ/exec";
         
@@ -260,8 +235,57 @@
         const syncStatus = document.getElementById('syncStatus');
         const tokenInput = document.getElementById('accessToken');
 
-        // --- Token 自動化與快取 ---
+        let transcriptHistory = [];
+        let actionItemsHistory = [];
+        let recognition;
+        let isListening = false;
+
+        // --- Persistence Logic (持久化邏輯) ---
         
+        function saveSessionData() {
+            localStorage.setItem('gtrans_transcript', JSON.stringify(transcriptHistory));
+            localStorage.setItem('gtrans_summary', summaryText.innerText);
+            localStorage.setItem('gtrans_actions', JSON.stringify(actionItemsHistory));
+            localStorage.setItem('gtrans_game_name', gameNameInput.value);
+        }
+
+        function loadSessionData() {
+            const savedTranscript = localStorage.getItem('gtrans_transcript');
+            const savedSummary = localStorage.getItem('gtrans_summary');
+            const savedActions = localStorage.getItem('gtrans_actions');
+            const savedGameName = localStorage.getItem('gtrans_game_name');
+
+            if (savedTranscript) {
+                transcriptHistory = JSON.parse(savedTranscript);
+                document.getElementById('emptyState').classList.add('hidden');
+                transcriptHistory.forEach(item => {
+                    renderChatBubbleUI(item.id || Date.now(), item.kr, item.translation, item.time, item.tone);
+                });
+            }
+            if (savedSummary) summaryText.innerText = savedSummary;
+            if (savedActions) {
+                actionItemsHistory = JSON.parse(savedActions);
+                renderActionItemsUI(actionItemsHistory);
+            }
+            if (savedGameName) gameNameInput.value = savedGameName;
+        }
+
+        function clearSessionData() {
+            if (confirm("確定要清空當前所有會議對話與摘要嗎？(建議清空前先進行匯出)")) {
+                localStorage.removeItem('gtrans_transcript');
+                localStorage.removeItem('gtrans_summary');
+                localStorage.removeItem('gtrans_actions');
+                transcriptHistory = [];
+                actionItemsHistory = [];
+                chatBox.innerHTML = ''; // 清空 UI
+                summaryText.innerText = "摘要將在此顯示...";
+                actionItemsList.innerHTML = '<div class="text-slate-300 text-xs italic text-center py-10">尚無識別項目...</div>';
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+
+        // --- Initialization ---
+
         window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = urlParams.get('token');
@@ -275,6 +299,7 @@
                 tokenInput.value = savedToken;
             }
             checkTokenStatus();
+            loadSessionData(); // 載入先前會議進度
         });
 
         tokenInput.addEventListener('input', () => {
@@ -288,15 +313,17 @@
             syncStatus.innerHTML = `<i class="fas fa-key text-rose-500"></i> <span class="ml-1 text-rose-400">權杖已清除</span>`;
         });
 
+        document.getElementById('resetSessionBtn').addEventListener('click', clearSessionData);
+
         function checkTokenStatus() {
             if (tokenInput.value.trim()) {
-                syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> <span class="ml-1 text-emerald-400">權杖已就緒</span>`;
+                syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> <span class="ml-1 text-emerald-400">權杖就緒</span>`;
             } else {
-                syncStatus.innerHTML = `<i class="fas fa-key text-slate-400"></i> <span class="ml-1">權杖狀態: 待檢核</span>`;
+                syncStatus.innerHTML = `<i class="fas fa-key text-slate-400"></i> <span class="ml-1">權杖待檢核</span>`;
             }
         }
 
-        // --- 處理與 API 邏輯 ---
+        // --- Core Translation & API Logic ---
 
         function cleanJsonString(str) {
             if (!str) return "";
@@ -305,69 +332,6 @@
             const end = Math.max(cleaned.lastIndexOf(']'), cleaned.lastIndexOf('}'));
             if (start !== -1 && end !== -1) return cleaned.substring(start, end + 1);
             return cleaned;
-        }
-
-        async function fetchGlossaryFromSheet() {
-            const gameName = gameNameInput.value.trim();
-            if (!gameName) return alert("請輸入遊戲名稱");
-            syncStatus.innerHTML = `<i class="fas fa-spinner loading-spinner text-navy-900"></i> 同步中...`;
-            try {
-                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(gameName)}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("讀取失敗");
-                const csvData = await response.text();
-                parseGlossaryCSV(csvData);
-                syncStatus.innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> 已連線分頁: ${gameName}`;
-                renderGlossary();
-            } catch (error) {
-                syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-rose-500"></i> 同步失敗`;
-            }
-        }
-
-        function parseGlossaryCSV(csvText) {
-            customGlossary = {};
-            const lines = csvText.split(/\r?\n/);
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i];
-                if (!line.trim()) continue;
-                const parts = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-                if (parts && parts.length >= 2) {
-                    const kr = parts[0].replace(/"/g, '').trim();
-                    const zh = parts[1].replace(/"/g, '').trim();
-                    const desc = parts[2] ? parts[2].replace(/"/g, '').trim() : "";
-                    if (kr && zh) customGlossary[kr] = { zh, desc };
-                }
-            }
-        }
-
-        function renderGlossary() {
-            glossaryList.innerHTML = '';
-            const entries = Object.entries(customGlossary);
-            if (entries.length === 0) {
-                glossaryList.innerHTML = `<div class="text-slate-400 italic text-center py-6">無術語資料。</div>`;
-                return;
-            }
-            entries.forEach(([kr, data]) => {
-                const div = document.createElement('div');
-                div.className = "p-3 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center text-[10px] shadow-sm transition-all hover:border-navy-900";
-                div.innerHTML = `<span><b class="text-navy-900">${kr}</b> <i class="fas fa-arrow-right mx-1 text-slate-300"></i> ${data.zh}</span>`;
-                glossaryList.appendChild(div);
-            });
-        }
-
-        async function syncTermsToSheet(terms) {
-            const gameName = gameNameInput.value.trim();
-            if (!gameName || terms.length === 0) return;
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-cache',
-                    body: JSON.stringify({ game: gameName, terms: terms })
-                });
-            } catch (err) {
-                console.error("Sheet Sync Error:", err);
-            }
         }
 
         async function callGemini(prompt, sys, options = {}) {
@@ -389,29 +353,20 @@
                 try {
                     const res = await fetch(url, {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}` 
-                        },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify(payload)
                     });
-                    
                     if (res.ok) {
                         const data = await res.json();
                         return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     }
-                    
-                    const errData = await res.json().catch(() => ({}));
-                    if (res.status === 403 || res.status === 401) {
-                        throw new Error(`Token 失效或權限錯誤 (${res.status})。`);
-                    }
-                    
+                    if (res.status === 403 || res.status === 401) throw new Error("Token 失效或權限錯誤。");
                     if (res.status === 429 || res.status >= 500) {
                         await new Promise(r => setTimeout(r, delay));
                         delay *= 2;
                         continue;
                     }
-                    throw new Error(`AI 請求失敗 (${res.status}): ${errData.error?.message || '未知錯誤'}`);
+                    throw new Error(`AI 請求失敗 (${res.status})`);
                 } catch (e) {
                     if (i === 4) throw e;
                     await new Promise(r => setTimeout(r, delay));
@@ -420,33 +375,59 @@
             }
         }
 
+        // --- UI Rendering Helpers ---
+
+        function renderChatBubbleUI(id, kr, zh, time, tone) {
+            const div = document.createElement('div');
+            div.id = `msg-${id}`;
+            div.innerHTML = `
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-[10px] text-slate-400 font-black tracking-widest">${time}</span>
+                    <span id="tone-${id}" class="tone-tag ${tone ? '' : 'hidden'}">${tone || ''}</span>
+                </div>
+                <div class="bg-white border border-slate-100 p-8 rounded-[36px] shadow-sm transition-all hover:shadow-md">
+                    <p class="text-[11px] text-slate-400 mb-3 pb-3 border-b border-slate-50">${kr}</p>
+                    <p id="zh-${id}" class="text-navy-900 font-bold leading-relaxed text-sm">${zh}</p>
+                </div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            
+            if (tone) {
+                const toneTag = document.getElementById(`tone-${id}`);
+                const cls = {"正式":"tone-formal","急迫":"tone-urgent","不滿":"tone-angry","放鬆":"tone-casual","疑惑":"tone-doubt"};
+                toneTag.className = `tone-tag ${cls[tone] || "tone-formal"}`;
+            }
+        }
+
+        function renderActionItemsUI(tasks) {
+            if (tasks.length === 0) return;
+            actionItemsList.innerHTML = tasks.map(t => `
+                <div class="p-4 bg-slate-50 border-l-4 ${t.priority==='高'?'border-rose-500':'border-navy-900'} rounded-2xl shadow-sm border border-slate-100 navy-shadow">
+                    <p class="text-xs font-bold text-navy-900">${t.title}</p>
+                    <p class="text-[10px] text-slate-400 mt-1 font-bold">期限: ${t.due} | ${t.priority}優先</p>
+                </div>
+            `).join('');
+        }
+
+        // --- Event Handlers ---
+
         document.getElementById('fetchContextBtn').addEventListener('click', async () => {
             const game = gameNameInput.value.trim();
-            if (!game) return alert("請先輸入遊戲名稱");
+            if (!game) return alert("請輸入遊戲名稱");
             document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-spinner loading-spinner"></i> 處理中...`;
-            contextStatus.innerText = "🔍 搜尋網路背景並更新術語庫...";
-
             try {
                 const searchRes = await callGemini(`詳細分析遊戲《${game}》在台韓兩地的常見專業術語對照。`, "你是一位資深遊戲顧問。", { tools: [{ "google_search": {} }] });
-                let gameContext = searchRes;
-
                 const extractPrompt = `根據內容提取中韓對照術語，僅輸出 JSON 格式：\n${searchRes}`;
                 const rawJson = await callGemini(extractPrompt, "輸出格式: [{\"kr\": \"...\", \"zh\": \"...\", \"desc\": \"...\"}]", { schema: true });
                 const newTerms = JSON.parse(cleanJsonString(rawJson));
-
-                if (Array.isArray(newTerms) && newTerms.length > 0) {
-                    newTerms.forEach(t => { 
-                        if (t.kr && t.zh && !customGlossary[t.kr]) customGlossary[t.kr] = { zh: t.zh, desc: t.desc || "" };
-                    });
-                    renderGlossary();
-                    await syncTermsToSheet(newTerms);
-                    contextStatus.innerText = `✅ 同步完成！獲取 ${newTerms.length} 個新項目。`;
+                if (Array.isArray(newTerms)) {
+                    newTerms.forEach(t => { if (t.kr && t.zh) glossaryList.innerHTML += `<div class="p-2 bg-slate-50 border border-slate-100 rounded-lg text-[10px] mb-1"><b>${t.kr}</b> -> ${t.zh}</div>`; });
+                    await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ game: game, terms: newTerms }) });
+                    contextStatus.innerText = `✅ 同步完成！`;
                 }
-            } catch (e) {
-                contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ ${e.message}</span>`;
-            } finally {
-                document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`;
-            }
+            } catch (e) { contextStatus.innerHTML = `<span class="text-rose-500 font-bold">❌ ${e.message}</span>`; }
+            finally { document.getElementById('fetchContextBtn').innerHTML = `<i class="fas fa-search"></i> 搜尋背景並同步術語`; }
         });
 
         async function processLine(krText) {
@@ -454,20 +435,24 @@
             document.getElementById('emptyState').classList.add('hidden');
             const msgId = Date.now();
             const time = new Date().toLocaleTimeString();
-            addChatBubble(msgId, krText, "翻譯中...", time);
+            renderChatBubbleUI(msgId, krText, "翻譯中...", time, null);
 
-            const glossaryStr = Object.entries(customGlossary).map(([k,v])=>`${k}=>${v.zh}`).join(', ');
-            const sys = `你是專業台韓遊戲口譯。術語庫優先：${glossaryStr}。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
-
+            const sys = `你是專業台韓遊戲口譯。輸出 JSON: {"translation": "...", "tone": "正式/急迫/不滿/放鬆/疑惑"}`;
             try {
                 const rawRes = await callGemini(krText, sys, { schema: true });
                 const result = JSON.parse(cleanJsonString(rawRes));
-                updateChatBubble(msgId, result);
-                transcriptHistory.push({ ...result, kr: krText, time });
+                
+                document.getElementById(`zh-${msgId}`).innerText = result.translation;
+                const toneTag = document.getElementById(`tone-${msgId}`);
+                toneTag.innerText = result.tone; toneTag.classList.remove('hidden');
+                const cls = {"正式":"tone-formal","急迫":"tone-urgent","不滿":"tone-angry","放鬆":"tone-casual","疑惑":"tone-doubt"};
+                toneTag.className = `tone-tag ${cls[result.tone] || "tone-formal"}`;
+
+                transcriptHistory.push({ id: msgId, kr: krText, translation: result.translation, time, tone: result.tone });
+                saveSessionData(); // 存檔
+
                 if (transcriptHistory.length % 2 === 0) updateSummary();
-            } catch (e) { 
-                updateChatBubble(msgId, { translation: `[連線錯誤: ${e.message}]` });
-            }
+            } catch (e) { document.getElementById(`zh-${msgId}`).innerText = `[連線錯誤: ${e.message}]`; }
         }
 
         async function updateSummary() {
@@ -478,41 +463,17 @@
                 const rawRes = await callGemini(history, sys, { schema: true });
                 const data = JSON.parse(cleanJsonString(rawRes));
                 summaryText.innerText = data.summary;
-                actionItemsList.innerHTML = data.tasks.map(t => `
-                    <div class="p-4 bg-slate-50 border-l-4 ${t.priority==='高'?'border-rose-500':'border-navy-900'} rounded-2xl shadow-sm border border-slate-100 navy-shadow transition-all hover:scale-[1.02]">
-                        <p class="text-xs font-bold text-navy-900">${t.title}</p>
-                        <p class="text-[10px] text-slate-400 mt-1 font-bold">期限: ${t.due} | ${t.priority}優先</p>
-                    </div>
-                `).join('');
+                actionItemsHistory = data.tasks;
+                renderActionItemsUI(actionItemsHistory);
+                saveSessionData(); // 存檔
             } catch (e) { console.error("Summary Error"); }
             document.getElementById('summaryLoading').classList.replace('opacity-100', 'opacity-0');
         }
 
-        function addChatBubble(id, kr, zh, time) {
-            const div = document.createElement('div');
-            div.id = `msg-${id}`;
-            div.innerHTML = `<div class="flex items-center gap-2 mb-3"><span class="text-[10px] text-slate-400 font-black tracking-widest">${time}</span><span id="tone-${id}" class="tone-tag hidden"></span></div><div class="bg-white border border-slate-100 p-8 rounded-[36px] shadow-sm transition-all hover:shadow-md"><p class="text-[11px] text-slate-400 mb-3 pb-3 border-b border-slate-50">${kr}</p><p id="zh-${id}" class="text-navy-900 font-bold leading-relaxed text-sm">${zh}</p></div>`;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function updateChatBubble(id, res) {
-            const zhElem = document.getElementById(`zh-${id}`);
-            if (zhElem) zhElem.innerText = res.translation;
-            const tone = document.getElementById('tone-' + id);
-            if (tone && res.tone) {
-                tone.innerText = res.tone; tone.classList.remove('hidden');
-                const cls = {"正式":"tone-formal","急迫":"tone-urgent","不滿":"tone-angry","放鬆":"tone-casual","疑惑":"tone-doubt"};
-                tone.className = `tone-tag ${cls[res.tone] || "tone-formal"}`;
-            }
-        }
-
-        // --- 控制 ---
-        document.getElementById('loadSheetBtn').addEventListener('click', fetchGlossaryFromSheet);
-        document.getElementById('openSheetBtn').addEventListener('click', () => window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`, '_blank'));
+        // --- Voice Controls ---
 
         document.getElementById('startBtn').addEventListener('click', () => {
-            if(!tokenInput.value.trim()) return alert("啟動前請先填入 Access Token。");
+            if(!tokenInput.value.trim()) return alert("請先填入 Access Token。");
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!recognition) {
                 recognition = new SpeechRecognition();
@@ -546,6 +507,7 @@
             document.getElementById('statusTag').innerText = "IDLE";
         });
 
+        // --- Export ---
         document.getElementById('copyToClipboardBtn').addEventListener('click', () => {
             const fullContent = `會議摘要：\n${summaryText.innerText}\n\n詳細紀錄：\n` + transcriptHistory.map(m => `[${m.time}] ${m.translation}`).join('\n');
             const textArea = document.createElement("textarea");
@@ -565,9 +527,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = `Meeting_Log.txt`;
-            document.body.appendChild(a);
             a.click();
-            setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 200);
         });
     </script>
 </body>
